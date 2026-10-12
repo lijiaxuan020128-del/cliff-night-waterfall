@@ -22,6 +22,13 @@ const POOL_Y = 1205;
 const SPAWN_PER_FRAME = 14;
 const MAX_PARTICLES = 1600;
 
+// ===========================
+// 瀑布粒子轨迹痕迹（可直接调整）
+// ===========================
+const TRACE_POINTS = 22;        // 轨迹长度：记录的历史点数，越多痕迹越长
+const TRACE_BRIGHTNESS = 0.4;   // 轨迹亮度：0 透明 ~ 1 最亮
+const TRACE_WIDTH = 1.2;        // 轨迹粗细（像素）
+
 let noiseStep = 0.015;
 let saddleDepth = 330;
 let bumpAmp = 130;
@@ -348,6 +355,8 @@ function resetParticle(p) {
   p.branch = sourceBranch;
   p.colX = p.x;
 
+  p.trace = [{ x: p.x, y: p.y }];
+
   p.sliding = false;
   p.nextBranch = null;
   p.slideDir = 0;
@@ -361,6 +370,13 @@ function resetParticle(p) {
 
   p.reachedPool = false;
   p.poolDir = random(-0.4, 0.4);
+
+  // 粒子外形：圆点、月牙、五角星各占约三分之一
+  const roll = random();
+
+  p.shape = roll < 1 / 3 ? "moon" : roll < 2 / 3 ? "star" : "dot";
+  p.moonPhase = random(0.15, 1);   // 月牙饱满度：细 → 饱满
+  p.rot = random(TWO_PI);
 }
 
 function beginBranchSlide(p) {
@@ -416,6 +432,8 @@ function scatterParticle(p) {
     p.y += distance / Math.abs(p.slideDir) * 0.5;
     p.slideRemain -= distance;
   }
+
+  p.trace = [{ x: p.x, y: p.y }];
 }
 
 // ===========================
@@ -547,6 +565,13 @@ function updateWater() {
       }
     }
 
+    // 在走过的路径上留下痕迹
+    p.trace.push({ x: p.x, y: p.y });
+
+    if (p.trace.length > TRACE_POINTS) {
+      p.trace.shift();
+    }
+
     if (p.y > H + 20 || p.s < 0.4) {
       resetParticle(p);
       continue;
@@ -568,6 +593,23 @@ function updateWater() {
     const widthScale = inPool
       ? 0.45
       : lerp(1, 0.45, depth);
+
+    // 轨迹痕迹：把走过的路径描成一条细线
+    if (p.trace.length > 1) {
+      ctx.beginPath();
+      ctx.moveTo(p.trace[0].x, p.trace[0].y);
+
+      for (let i = 1; i < p.trace.length; i++) {
+        ctx.lineTo(p.trace[i].x, p.trace[i].y);
+      }
+
+      ctx.strokeStyle = `rgba(214,222,250,${
+        TRACE_BRIGHTNESS * p.alpha * poolFade
+      })`;
+
+      ctx.lineWidth = TRACE_WIDTH;
+      ctx.stroke();
+    }
 
     strokeLight(
       ctx,
@@ -642,17 +684,64 @@ function drawHeads() {
   for (const p of particles) {
     ctx.globalAlpha = p.bright ? 0.9 : p.alpha * 0.5;
 
-    const size = p.bright ? 1.8 : 0.9;
+    const r = (p.bright ? 1.8 : 0.9) / 2;
 
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, size / 2, 0, Math.PI * 2);
-    ctx.fill();
+    if (p.shape === "moon") {
+      drawCrescent(ctx, p.x, p.y, r, p.moonPhase, p.rot);
+    } else if (p.shape === "star") {
+      drawStar(ctx, p.x, p.y, r, p.rot);
+    } else {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
 
   for (const sp of sprays) {
     ctx.globalAlpha = (1 - sp.age / sp.life) * 0.6;
     ctx.fillRect(sp.x, sp.y, 1, 1);
   }
+
+  ctx.restore();
+}
+
+// 月牙：phase 从 0（细如钩）到 1（饱满近圆），rot 为随机朝向
+function drawCrescent(ctx, x, y, r, phase, rot) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(rot);
+
+  const d = r * (0.2 + 0.55 * phase);
+
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, Math.PI * 2);
+  ctx.arc(d, -r * 0.1, r * 0.85, 0, Math.PI * 2);
+  ctx.fill("evenodd");
+
+  ctx.restore();
+}
+
+// 五角星
+function drawStar(ctx, x, y, r, rot) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(rot);
+
+  ctx.beginPath();
+
+  for (let i = 0; i < 10; i++) {
+    const rr = i % 2 === 0 ? r : r * 0.45;
+    const a = -Math.PI / 2 + (i * Math.PI) / 5;
+
+    if (i === 0) {
+      ctx.moveTo(Math.cos(a) * rr, Math.sin(a) * rr);
+    } else {
+      ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr);
+    }
+  }
+
+  ctx.closePath();
+  ctx.fill();
 
   ctx.restore();
 }
