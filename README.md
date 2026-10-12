@@ -8,9 +8,13 @@
   （fork of tp5_250806_StaircaseWaterway, credits to はぅ君）
 - 每根水柱的落点高低、横移远近各自随机，柱底溅水花
 
+## 在线观看
+
+<https://lijiaxuan020128-del.github.io/cliff-night-waterfall/>
+
 ## 运行
 
-直接打开 `index.html`（加载 p5.js CDN），或访问 GitHub Pages。
+直接打开 `index.html`（加载 p5.js CDN），或访问上面的在线链接。
 
 ## 操作
 
